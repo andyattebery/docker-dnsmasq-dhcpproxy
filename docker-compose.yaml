@@ -7,9 +7,11 @@ services:
     cap_add:
       - NET_ADMIN
     environment:
-      - DNSMASQ_PROXY_SUBNET=192.168.1.1
+      - DNSMASQ_PROXY_DHCP_SUBNET=192.168.1.1
       - NETBOOTXYZ_SERVER_IP=192.168.1.235
     network_mode: host
+    volumes:
+      - ${PWD}/dnsmasq.d:/etc/dnsmasq.d
     # ports:
     #   - 67:67/udp
       # - 68:68/tcp

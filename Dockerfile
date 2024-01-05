@@ -5,8 +5,7 @@ RUN apk upgrade && \
 
 COPY entrypoint.sh /entrypoint.sh
 
-EXPOSE 67/udp 
-#68/tcp 68/udp
+# EXPOSE 67/udp 68/tcp 68/udp
 
 VOLUME /etc/dnsmasq.d
 

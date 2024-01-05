@@ -1,14 +1,25 @@
 #!/bin/sh
 
+# sh ref: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_25
 # When this option is on, when any command fails (for any of the reasons listed in Consequences of Shell Errors or by returning an exit status greater than zero), the shell immediately shall exit, as if by executing the exit special built-in utility with no arguments
 set -e
 
 # When the shell tries to expand an unset parameter other than the '@' and '*' special parameters, it shall write a message to standard error and the expansion shall fail with the consequences specified in Consequences of Shell Errors.
-set -u
+# set -u
 
 DNSMASQ_CONF_DIR="/etc/dnsmasq.d"
 
-# print_error() { printf "%s\n" "$*" >&2; }
+print_error() { printf "%s\n" "$*" >&2; }
+
+# POSIX parameter expansion ref: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_06_02
+# test: -z STRING
+#   the length of STRING is zero
+if [ -z "${DNSMASQ_PROXY_DHCP_SUBNET:+set_and_not_empty}" ]; then
+    print_error "DNSMASQ_PROXY_DHCP_SUBNET must be set"
+    exit 1
+fi
+
+echo "Creating /etc/dnsmasq.conf"
 
 cat << EOF > "/etc/dnsmasq.conf"
 # Ref: https://thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html
@@ -27,7 +38,7 @@ log-dhcp
 
 # -F, --dhcp-range=[tag:<tag>[,tag:<tag>],][set:<tag>,]<start-addr>[,<end-addr>|<mode>[,<netmask>[,<broadcast>]]][,<lease time>]
 # For IPv4, the <mode> may be proxy in which case dnsmasq will provide proxy-DHCP on the specified subnet. (See --pxe-prompt and --pxe-service for details.)
-dhcp-range=$DNSMASQ_PROXY_SUBNET,proxy
+dhcp-range=$DNSMASQ_PROXY_DHCP_SUBNET,proxy
 
 # -7, --conf-dir=<directory>[,<file-extension>......],
 # Read all the files in the given directory as configuration files. If extension(s) are given, any files which end in those extensions are skipped. Any files whose names end in ~ or start with . or start and end with # are always skipped. If the extension starts with * then only files which have that extension are loaded. So --conf-dir=/path/to/dir,*.conf loads all files with the suffix .conf in /path/to/dir. This flag may be given on the command line or in a configuration file. If giving it on the command line, be sure to escape * characters. Files are loaded in alphabetical order of filename.
@@ -35,7 +46,14 @@ dhcp-range=$DNSMASQ_PROXY_SUBNET,proxy
 conf-dir=$DNSMASQ_CONF_DIR/,*.conf
 EOF
 
-if [ -n ${NETBOOTXYZ_SERVER_IP:+set_and_not_empty} ]; then
+# POSIX parameter expansion ref: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_06_02
+# test: -n STRING
+#   the length of STRING is nonzero
+# If NETBOOTXYZ_SERVER_IP is unset or empty, null is returned, therefore the string length is zero and the condition is false; so 10-netbootxyz.conf is not created.
+# Else set_and_not_empty is returned, therefore the string length is nonzero; so 10-netbootxyz.conf is created.
+if [ -n "${NETBOOTXYZ_SERVER_IP:+set_and_not_empty}" ]; then
+
+echo "Creating $DNSMASQ_CONF_DIR/10-netbootxyz.conf"
 
 cat <<- EOF > "$DNSMASQ_CONF_DIR/10-netbootxyz.conf"
 
@@ -57,6 +75,19 @@ dhcp-vendorclass=set:uefi_arm32,PXEClient:Arch:00010
 # ARM 64-bit UEFI
 dhcp-vendorclass=set:uefi_arm64,PXEClient:Arch:00011
 
+# # x86 BIOS
+# dhcp-match=set:bios,60,PXEClient:Arch:00000
+# # x86 UEFI
+# dhcp-match=set:uefi_x86,60,PXEClient:Arch:00006
+# # x64 UEFI
+# dhcp-match=set:uefi_x64,60,PXEClient:Arch:00007
+# # EBC
+# dhcp-match=set:uefi_x64,60,PXEClient:Arch:00009
+# # ARM 32-bit UEFI
+# dhcp-match=set:uefi_arm32,60,PXEClient:Arch:00010
+# # ARM 64-bit UEFI
+# dhcp-match=set:uefi_arm64,60,PXEClient:Arch:00011
+
 # -M, --dhcp-boot=[tag:<tag>,]<filename>,[<servername>[,<server address>|<tftp_servername>]]
 # (IPv4 only) Set BOOTP options to be returned by the DHCP server. Server name and address are optional: if not provided, the name is left empty, and the address set to the address of the machine running dnsmasq. If dnsmasq is providing a TFTP service (see --enable-tftp ) then only the filename is required here to enable network booting. If the optional tag(s) are given, they must match for this configuration to be sent. Instead of an IP address, the TFTP server address can be given as a domain name which is looked up in /etc/hosts. This name can be associated in /etc/hosts with multiple IP addresses, which are used round-robin. This facility can be used to load balance the tftp load among a set of servers.
 
@@ -65,7 +96,6 @@ dhcp-boot=tag:uefi_x86,netboot.xyz.efi,netboot.xyz,$NETBOOTXYZ_SERVER_IP
 dhcp-boot=tag:uefi_x64,netboot.xyz.efi,netboot.xyz,$NETBOOTXYZ_SERVER_IP
 dhcp-boot=tag:uefi_arm32,netboot.xyz-arm64.efi,netboot.xyz,$NETBOOTXYZ_SERVER_IP
 dhcp-boot=tag:uefi_arm64,netboot.xyz-arm64.efi,netboot.xyz,$NETBOOTXYZ_SERVER_IP
-
 EOF
 fi
 
